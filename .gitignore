@@ -1,10 +1,18 @@
 # Node.js
 node_modules/
+package-lock.json
 
 # Editor
 .vscode/
 *.swp
 
+# Config
+config.json
+
 # Credential
 credential.json
-session.json
+credentials.json
+
+# Session Cache Folder
+.cache/*
+!.cache/.gitkeep

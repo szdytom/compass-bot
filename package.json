@@ -1,10 +1,22 @@
 {
   "name": "compass-bot",
+  "description": "Create minecraft bot swarms and control them easily.",
+  "main": "index.mjs",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/szdytom/compass-bot.git"
+  },
   "dependencies": {
     "axios": "^1.6.0",
+    "debug": "^4.3.4",
     "mineflayer": "^4.14.0",
+    "mineflayer-event-promise": "file:plugin/event-promise",
     "mineflayer-pathfinder": "^2.4.5",
     "prismarine-viewer": "^1.25.0",
     "yargs": "^17.7.2"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

@@ -1,0 +1,9 @@
+{
+	"name": "mineflayer-event-promise",
+	"description": "Promise-styled event system for mineflayer bot",
+	"type": "module",
+	"main": "index.mjs",
+	"dependencies": {
+		"debug": "^4.3.4"
+	}
+}
