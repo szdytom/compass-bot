@@ -1,0 +1,6 @@
+{
+	"name": "@fang_erj/compass-utils",
+	"description": "Utility functions use in compass-bot",
+	"type": "module",
+	"main": "index.mjs"
+}
