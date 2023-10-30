@@ -45,6 +45,13 @@ export class Task {
 		this.#notifyFailure();
 	}
 
+	_interuptableHere() {
+		if (this._shouldInterupt()) {
+			this._confirmInterupt();
+			throw this.error;
+		}
+	}
+
 	get() {
 		if (this.status == Task.STATUS.ready) { return Promise.resolve(this.result); }
 		if (this.status == Task.STATUS.failed || this.status == Task.STATUS.interupted) {

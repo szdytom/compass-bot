@@ -12,6 +12,8 @@
     "debug": "^4.3.4",
     "mineflayer": "^4.14.0",
     "mineflayer-event-promise": "file:plugin/event-promise",
+    "compass-utils": "file:utils",
+    "mineflayer-control": "file:plugin/control",
     "mineflayer-pathfinder": "^2.4.5",
     "prismarine-viewer": "^1.25.0",
     "yargs": "^17.7.2"

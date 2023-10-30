@@ -1,7 +1,7 @@
-import authlib from './auth/authlib.mjs';
+import * as authlib from './auth/authlib.mjs';
 import mineflayer from 'mineflayer';
 import yargs from 'yargs';
-import { parseLogin, waitEvent } from './utils/index.mjs';
+import { parseLogin, waitEvent } from 'compass-utils';
 import repl from 'node:repl';
 import vm from 'node:vm';
 
@@ -37,9 +37,12 @@ async function main() {
 		host, port, version: args.protocal,
 		...session.mineflayer(credential_info.endpoint)
 	});
+	bot.on('error', console.error);
+	bot.on('kicked', console.log);
 
 	await waitEvent(bot, 'inject_allowed');
 	bot.loadPlugin((await import('mineflayer-event-promise')).default);
+	bot.loadPlugin((await import('mineflayer-control')).default);
 	await bot.waitEvent('spawn');
 
 	let context = vm.createContext();

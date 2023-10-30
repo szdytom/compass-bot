@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { readJsonFile, writeJsonFile } from '../utils/index.mjs';
+import { readJsonFile, writeJsonFile } from 'compass-utils';
 
 export class NoCredentialError extends Error {
 	constructor(profile) {
@@ -45,6 +45,10 @@ export class Account {
 
 		return new SessionCache(auth_info.accessToken, auth_info.clientToken
 			, auth_info.selectedProfile, auth_info.availableProfiles);
+	}
+
+	toString() {
+		return this.handle;
 	}
 };
 
@@ -176,9 +180,4 @@ export class SessionCache {
 			},
 		};
 	}
-};
-
-export default {
-	NoCredentialError, ProfileNotSelectedError, ProfileAlreadySelectedError
-	, YggdrasilEndpoint, Account, Credentials, SessionCache
 };
