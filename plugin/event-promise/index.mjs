@@ -1,11 +1,17 @@
 import debug from 'debug';
-const log = debug('mineflayer-event-promise');
+const logger = debug('mineflayer-event-promise');
 
 export default function inject(bot) {
-	debug('Injected!');
+	logger('Injected!');
 	bot.waitEvent = (event) => {
 		return new Promise((resolve, _reject) => {
 			bot.once(event, resolve);
+		});
+	};
+
+	bot.timeoutTick = (t) => {
+		return new Promise((_resolve, reject) => {
+			bot.waitForTicks(t).then(reject);
 		});
 	};
 }
