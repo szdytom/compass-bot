@@ -1,4 +1,4 @@
-export class TaskInteruptedError {
+export class TaskInteruptedError extends Error {
 	constructor() { super('Task has been interupted.'); }
 };
 
