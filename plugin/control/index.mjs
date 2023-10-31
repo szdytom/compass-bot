@@ -1,5 +1,5 @@
 import debug from 'debug';
-import { Queue, Task } from 'compass-utils';
+import { Queue, Task, isIterable } from 'compass-utils';
 import { Vec3 } from 'vec3';
 const logger = debug('mineflayer-control');
 
@@ -40,12 +40,15 @@ export const MOVE_LEVEL = {
 
 export class ControlState {
 	constructor() {
-		for (let key of ControlState.CONTROLS) {
-			this[key] = false;
-		}
+		this.clear();
+		for (let key of arguments) { this[key] = true; }
 	}
 
-	set(cs) {
+	clear() {
+		for (let key of ControlState.CONTROLS) { this[key] = false; }
+	}
+
+	update(cs) {
 		for (let key of ControlState.CONTROLS) {
 			this[key] = cs[key] || false;
 		}
@@ -53,7 +56,7 @@ export class ControlState {
 
 	static from(cs) {
 		let res = new ControlState();
-		res.set(cs);
+		res.update(cs);
 		return res;
 	}
 
@@ -61,6 +64,14 @@ export class ControlState {
 		for (let key of ControlState.CONTROLS) {
 			bot.setControlState(key, this[key]);
 		}
+	}
+
+	enable(c) {
+		for (let key of arguments) { this[key] = true; }
+	}
+
+	disable(c) {
+		for (let key of arguments) { this[key] = false; }
 	}
 };
 
@@ -118,8 +129,7 @@ async function moveAxisTask(bot, task, axis_raw, target_raw, level) {
 	logger('moveAxisTask() post adjust look angle');
 	task._interuptableHere();
 
-	const controls = new ControlState();
-	controls.forward = true;
+	const controls = new ControlState('forward');
 	if (level >= MOVE_LEVEL.SPRINT) { controls.sprint = true; }
 	logger('moveAxisTask() control', controls);
 	controls.apply(bot);
@@ -200,6 +210,58 @@ export default function inject(bot) {
 		});
 		return task;
 	};
+
+	bot.control.jumpUp = async (axis_raw, time=5) => {
+		const axis = AXIS[axis_raw];
+		bot.control.adjustXZ();
+		await bot.look(axis * Math.PI / 2, 0, true);
+		let controls = new ControlState('forward', 'jump');
+		let pos = bot.entity.position;
+		controls.apply(bot);
+		await bot.waitForTicks(time);
+		bot.clearControlStates();
+		bot.entity.position.update(pos.plus(AXIS_UNIT[axis]).offset(0, 1, 0));
+		bot.entity.velocity.x = 0;
+		bot.entity.velocity.z = 0;
+		await bot.waitForTicks(1);
+	};
+
+	bot.control.jumpForward = async (axis_raw, dis=2, tactic) => {
+		if (tactic == null) { tactic = {}; }
+		if (tactic.sprint == null) { tactic.sprint = dis > 3; }
+		if (tactic.speed == null) { tactic.speed = tactic.sprint ? .355 : .216; }
+
+		const axis = AXIS[axis_raw];
+		bot.control.adjustXZ();
+		let target = bot.entity.position.plus(AXIS_UNIT[axis].scaled(dis));
+		logger(`jumpForward() axis: ${"zx"[axis % 2]}`);
+		logger(`jumpForward() target: ${target}`);
+		logger(`jumpForward() tactic: sprint=${tactic.sprint}, speed=${tactic.speed}`);
+		await bot.look(axis * Math.PI / 2, 0, true);
+
+		let controls = new ControlState('forward', 'jump');
+		controls.sprint = tactic.sprint;
+		controls.apply(bot);
+		bot.entity.velocity.add(AXIS_UNIT[axis].scaled(tactic.speed));
+
+		await bot.waitForTicks(1);
+		controls.jump = false;
+		controls.apply(bot);
+		logger(`jumpForward() ${bot.entity.velocity}`);
+
+		await bot.waitForTicks(Math.floor((dis / tactic.speed) - 1));
+		bot.clearControlStates();
+
+		let pos = bot.entity.position;
+		logger(`jumpForward() done at ${pos}.`);
+		if (pos.distanceTo(target) > 1) {
+			throw new MoveInterferedError();
+		}
+		pos.x = target.x;
+		pos.z = target.z;
+		bot.entity.velocity.x = 0;
+		bot.entity.velocity.z = 0;
+	}
 
 	bot.control.jump = async () => {
 		bot.setControlState('jump', true);
