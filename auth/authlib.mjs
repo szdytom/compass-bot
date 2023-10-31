@@ -43,7 +43,7 @@ export class Account {
 			password: this.password,
 		})).data;
 
-		return new SessionCache(auth_info.accessToken, auth_info.clientToken
+		return new YggdrasilSession(auth_info.accessToken, auth_info.clientToken
 			, auth_info.selectedProfile, auth_info.availableProfiles);
 	}
 
@@ -78,7 +78,7 @@ export class Credentials {
 	}
 
 	async authProfile(profile) {
-		let sc = await SessionCache.load(profile);
+		let sc = await YggdrasilSession.load(profile);
 		if (sc != null && !(await sc.validate(this.endpoint))) { sc = null; }
 
 		if (sc == null) {
@@ -92,7 +92,7 @@ export class Credentials {
 	}
 };
 
-export class SessionCache {
+export class YggdrasilSession {
 	constructor(accessToken, clientToken, selectedProfile, availableProfiles) {
 		this.accessToken = accessToken;
 		this.clientToken = clientToken;
@@ -120,7 +120,7 @@ export class SessionCache {
 	static async load(profile) {
 		let cache_data = await readJsonFile(`.cache/${profile}.json`);
 		if (cache_data == null) { return null; }
-		return new SessionCache(cache_data.accessToken, cache_data.clientToken, cache_data.selectedProfile);
+		return new YggdrasilSession(cache_data.accessToken, cache_data.clientToken, cache_data.selectedProfile);
 	}
 
 	async validate(endpoint) {
@@ -181,3 +181,25 @@ export class SessionCache {
 		};
 	}
 };
+
+export class OfflineSession {
+	constructor(username) {
+		this.username = username;
+	}
+
+	name() { return this.username; }
+	session() { return null; }
+	async store() {}
+	static async load(profile) { return new OfflineSession(profile); }
+	async validate() { return true; }
+	async selectProfile(profile) { this.username = profile; }
+
+	mineflayer() {
+		if (this.username == null) { throw new ProfileNotSelectedError(); }
+
+		return {
+			username: this.name(),
+			auth: 'offline',
+		};
+	}
+}

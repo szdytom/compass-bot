@@ -1,5 +1,5 @@
 import debug from 'debug';
-import { Task } from 'compass-utils';
+import { Queue, Task } from 'compass-utils';
 import { Vec3 } from 'vec3';
 const logger = debug('mineflayer-control');
 
@@ -79,6 +79,10 @@ export class MoveInterferedError extends Error {
 	constructor() { super('Move task has been interfered by an external force.'); }
 };
 
+export class MovePathBlockedError extends Error {
+	constructor() { super('Move path is possiblely blocked.'); }
+};
+
 async function moveAxisTask(bot, task, axis_raw, target_raw, level) {
 	const axis = AXIS[axis_raw];
 	const stable_axis = "xz"[axis % 2];
@@ -98,7 +102,8 @@ async function moveAxisTask(bot, task, axis_raw, target_raw, level) {
 	logger(`moveAxisTask() distance: ${remaining_dis}.`);
 	logger(`moveAxisTask() stable_axis: ${stable_axis}.`);
 	logger(`moveAxisTask() Condition: ${delta[stable_axis]} ${delta.y}.`);
-	if (Math.abs(delta.y) > Number.EPSILON || Math.abs(delta[stable_axis]) > Number.EPSILON) {
+	if (Math.abs(delta.y) > 0.5 + Number.EPSILON
+		|| Math.abs(delta[stable_axis]) > Number.EPSILON) {
 		throw new Error('Invalid Argument: target');
 	}
 
@@ -120,7 +125,9 @@ async function moveAxisTask(bot, task, axis_raw, target_raw, level) {
 	controls.apply(bot);
 	logger('moveAxisTask() started.');
 
-	let time_used = 0;
+	let time_used = 0, pos_queue = new Queue();
+	const TRACK_TICKS = 5;
+	pos_queue.push(pos.clone());
 	do {
 		await bot.waitForTicks(1);
 		task._interuptableHere();
@@ -134,13 +141,33 @@ async function moveAxisTask(bot, task, axis_raw, target_raw, level) {
 			logger(`moveAxisTask() pos.${stable_axis}: ${pos[stable_axis]}.`);
 			throw new MoveInterferedError();
 		}
+
+		if (Math.abs(pos.y - target.y) > 0.5 + Number.EPSILON) {
+			logger('moveAxisTask() y changed to much.');
+			logger(`moveAxisTask() target.y=${target.y} vs. pos.y=${pos.y}`);
+			throw new MoveInterferedError();
+		}
+
 		pos[stable_axis] = stable_axis_value;
+		pos_queue.push(pos.clone());
+		if (pos_queue.size() > TRACK_TICKS) { pos_queue.popFront(); }
+
+		if (pos_queue.size() == 5) {
+			let pos5t = pos_queue.front();
+			if (pos.distanceSquared(pos5t) < Number.EPSILON) {
+				logger('moveAxisTask() position changed too little.');
+				logger(`moveAxisTask() position 5 ticks ago: ${pos5t}.`);
+				logger(`moveAxisTask() position now: ${pos}.`);
+				throw new MovePathBlockedError();
+			}
+		}
 
 		delta.update(target.minus(pos));
 		remaining_dis = delta.dot(AXIS_UNIT[axis]);
 		if (Math.abs(remaining_dis) <= 0.5) {
 			logger('moveAxisTask() very close to target now.');
-			pos.update(target);
+			pos.x = target.x;
+			pos.z = target.z;
 			bot.entity.velocity.x = 0;
 			bot.entity.velocity.z = 0;
 			break;
@@ -162,12 +189,14 @@ export default function inject(bot) {
 
 	bot.control.moveAxis = (axis, target, level = MOVE_LEVEL.SPRINT) => {
 		let task = new Task();
-		queueMicrotask(() => {
-			task._start();
-			moveAxisTask(bot, task, axis, target, level).catch(err => {
+		queueMicrotask(async () => {
+			try {
+				task._start();
+				await moveAxisTask(bot, task, axis, target, level);
+			} catch(err) {
 				bot.clearControlStates();
 				task._fail(err);
-			});
+			};
 		});
 		return task;
 	};

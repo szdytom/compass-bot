@@ -2,12 +2,15 @@ export class TaskInteruptedError extends Error {
 	constructor() { super('Task has been interupted.'); }
 };
 
+let task_id = 0;
+
 export class Task {
 	#promise;
 	#resolve;
 	#reject;
 
 	constructor() {
+		this.id = ++task_id;
 		this.status = Task.STATUS.pending;
 		this.error = null;
 		this.result = null;
@@ -80,10 +83,15 @@ export class Task {
 
 	valueOf() {
 		return {
+			id: this.id,
 			status: Task.STATUS_NAME[this.status],
 			result: this.result,
 			error: this.error,
 		};
+	}
+
+	toString() {
+		return `[Task ${this.id}: ${Task.STATUS_NAME[this.status]}]`;
 	}
 };
 
