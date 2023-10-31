@@ -77,6 +77,23 @@ export class Task {
 
 		return this.#promise;
 	}
+
+	valueOf() {
+		return {
+			status: Task.STATUS_NAME[this.status],
+			result: this.result,
+			error: this.error,
+		};
+	}
+};
+
+Task.STATUS_NAME = {
+	0: 'Pending',
+	1: 'Running',
+	2: 'Interupting',
+	3: 'Ready',
+	4: 'Interupted',
+	5: 'Failed',
 };
 
 Task.STATUS = {
