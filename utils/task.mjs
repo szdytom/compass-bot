@@ -3,24 +3,34 @@ export class TaskInteruptedError extends Error {
 };
 
 export class Task {
+	#promise;
+	#resolve;
+	#reject;
+
 	constructor() {
 		this.status = Task.STATUS.pending;
 		this.error = null;
 		this.result = null;
-		this.result_listeners = [];
+		this.#promise = new Promise((resolve, reject) => {
+			this.#resolve = resolve;
+			this.#reject = reject;
+		});
 	}
 
 	_ready(result) {
+		if (this.#promise == null) { return; }
 		this.result = result;
 		this.status = Task.STATUS.ready;
-		this.#notifySuccess();
+		this.#resolve(this.result);
+		this.#promise = null;
 	}
 
 	_fail(error) {
-		if (this.status == Task.STATUS.interupted) { return; }
+		if (this.#promise == null) { return; }
 		this.error = error;
 		this.status = Task.STATUS.failed;
-		this.#notifyFailure();
+		this.#reject(this.error);
+		this.#promise = null;
 	}
 
 	_start() {
@@ -31,8 +41,14 @@ export class Task {
 	}
 
 	interupt() {
-		if (this.status == Task.STATUS.pending) { this._confirmInterupt(); }
-		else { this.status = Task.STATUS.interupting; }
+		if (this.status == Task.STATUS.pending) {
+			this._confirmInterupt();
+			return Promise.resolve();
+		}
+
+		if (this.#promise == null) { return Promise.resolve(); }
+		this.status = Task.STATUS.interupting;
+		return this.#promise.finally();
 	}
 
 	_shouldInterupt() {
@@ -42,7 +58,8 @@ export class Task {
 	_confirmInterupt() {
 		this.status = Task.STATUS.interupted;
 		this.error = new TaskInteruptedError();
-		this.#notifyFailure();
+		this.#reject(this.error);
+		this.#promise = null;
 	}
 
 	_interuptableHere() {
@@ -58,23 +75,7 @@ export class Task {
 			return Promise.reject(this.error);
 		}
 
-		return new Promise((resolve, reject) => {
-			this.result_listeners.push([resolve, reject]);
-		});
-	}
-
-	#notifyFailure() {
-		for (let [_resolve, reject] of this.result_listeners) {
-			reject(this.error);
-		}
-		this.result_listeners = [];
-	}
-
-	#notifySuccess() {
-		for (let [resolve, _reject] of this.result_listeners) {
-			resolve(this.result);
-		}
-		this.result_listeners = [];
+		return this.#promise;
 	}
 };
 
