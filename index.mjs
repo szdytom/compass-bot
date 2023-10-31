@@ -1,7 +1,7 @@
 import * as authlib from './auth/authlib.mjs';
 import mineflayer from 'mineflayer';
 import yargs from 'yargs';
-import { parseLogin, waitEvent } from 'compass-utils';
+import { asyncSleep, parseLogin, waitEvent } from 'compass-utils';
 import repl from 'node:repl';
 import debug from 'debug';
 
@@ -76,6 +76,8 @@ async function main() {
 		context.sc.pos = () => bot.entity.position;
 		context.sc.debug_enable = (module) => debug.enable(module);
 		context.sc.debug_disable = (module) => debug.disable(module);
+		context.sc.q = () => bot.quit();
+		context.sc.sleep = asyncSleep;
 	}
 
 	if (!args.noRepl) {
