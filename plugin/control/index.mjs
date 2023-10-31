@@ -109,7 +109,7 @@ async function moveAxisTask(bot, task, axis_raw, target_raw, level) {
 	const stable_axis_value = target[stable_axis];
 
 	logger('moveAxisTask() pre adjust look angle');
-	await bot.look(axis * Math.PI / 2, 0);
+	await bot.look(axis * Math.PI / 2, 0, true);
 	logger('moveAxisTask() post adjust look angle');
 	task._interuptableHere();
 
