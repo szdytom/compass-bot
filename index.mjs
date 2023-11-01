@@ -72,10 +72,10 @@ async function main() {
 			return bot.players[args.owner];
 		};
 
+		context.debug = debug;
 		context.sc = {};
 		context.sc.pos = () => bot.entity.position;
-		context.sc.debug_enable = (module) => debug.enable(module);
-		context.sc.debug_disable = (module) => debug.disable(module);
+		context.sc.debug_mfc = () => debug.enable('mineflayer-control');
 		context.sc.q = () => bot.quit();
 		context.sc.sleep = asyncSleep;
 	}

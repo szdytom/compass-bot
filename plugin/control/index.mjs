@@ -1,6 +1,7 @@
 import debug from 'debug';
 import { Queue, Task, isIterable } from 'compass-utils';
 import { Vec3 } from 'vec3';
+import assert from 'node:assert/strict';
 const logger = debug('mineflayer-control');
 
 // yaw = axis * Math.PI / 2
@@ -27,10 +28,12 @@ export const AXIS_UNIT = {
 	3: new Vec3(1, 0, 0),
 };
 
-AXIS_UNIT['-Z'] = AXIS_UNIT['NORTH'] = AXIS_UNIT[0];
-AXIS_UNIT['-X'] = AXIS_UNIT['WEST'] = AXIS_UNIT[1];
-AXIS_UNIT['+Z'] = AXIS_UNIT['SOUTH'] = AXIS_UNIT[2];
-AXIS_UNIT['+X'] = AXIS_UNIT['EAST'] = AXIS_UNIT[3];
+export const AXIS_NAME = {
+	0: '-Z',
+	1: '-X',
+	2: '+Z',
+	3: '+X',
+};
 
 export const MOVE_LEVEL = {
 	WALK: 1,
@@ -96,6 +99,10 @@ export class MovePathBlockedError extends Error {
 
 async function moveAxisTask(bot, task, axis_raw, target_raw, level) {
 	const axis = AXIS[axis_raw];
+	assert.equal(typeof axis, 'number', 'axis');
+	assert.ok(0 <= axis && axis <= 3, 'axis');
+	assert.equal(typeof level, 'number', 'level');
+	assert.ok(target instanceof Vec3, 'target');
 	const stable_axis = "xz"[axis % 2];
 	const target = target_raw.clone();
 	adjustXZ(target);
@@ -166,7 +173,7 @@ async function moveAxisTask(bot, task, axis_raw, target_raw, level) {
 			let pos5t = pos_queue.front();
 			if (pos.distanceSquared(pos5t) < Number.EPSILON) {
 				logger('moveAxisTask() position changed too little.');
-				logger(`moveAxisTask() position 5 ticks ago: ${pos5t}.`);
+				logger(`moveAxisTask() position ${TRACK_TICKS} ticks ago: ${pos5t}.`);
 				logger(`moveAxisTask() position now: ${pos}.`);
 				throw new MovePathBlockedError();
 			}
@@ -175,7 +182,7 @@ async function moveAxisTask(bot, task, axis_raw, target_raw, level) {
 		delta.update(target.minus(pos));
 		remaining_dis = delta.dot(AXIS_UNIT[axis]);
 		if (Math.abs(remaining_dis) <= 0.5) {
-			logger('moveAxisTask() very close to target now.');
+			logger(`moveAxisTask() very close! remain: ${remaining_dis}.`);
 			pos.x = target.x;
 			pos.z = target.z;
 			bot.entity.velocity.x = 0;
@@ -189,6 +196,58 @@ async function moveAxisTask(bot, task, axis_raw, target_raw, level) {
 		}
 	} while (true);
 	bot.clearControlStates();
+	task._ready(time_used);
+}
+
+async function ladderAscendTask(bot, task, target_y) {
+	assert.equal(typeof target_y, 'number', 'target_y');
+	bot.control.adjustXZ();
+	const start_pos = bot.entity.position.clone();
+	logger(`ladderAscendTask() initial position: ${start_pos}.`);
+	logger(`ladderAscendTask() target y: ${target_y}.`);
+	
+	if (start_pos.y > target_y) {
+		throw new Error('Invalid Argument: target_y is smaller than current y.');
+	}
+
+	let controls = new ControlState('jump');
+	controls.apply(bot);
+	logger('ladderAscendTask() started.');
+
+	const TRACK_TICKS = 10;
+	let time_used = 0,  last_y = start_pos.y;
+	do {
+		await bot.waitForTicks(1);
+		task._interuptableHere();
+		time_used += 1;
+
+		const pos = bot.entity.position;
+		if (pos.xzDistanceTo(start_pos) > 1) { throw new MoveInterferedError(); }
+		bot.control.adjustXZ();
+
+		if (Math.abs(pos.y - target_y) < 0.2) {
+			logger('ladderAscendTask() reached.');
+			bot.clearControlStates();
+			pos.y = target_y;
+			break;
+		}
+
+		if (pos.y - target_y > 0.4) {
+			logger('ladderAscendTask() went past target.');
+			throw new MoveInterferedError();
+		}
+
+		if (time_used % TRACK_TICKS == 0) {
+			let now_y = pos.y;
+			if (Math.abs(now_y - last_y) < 0.3) {
+				logger(`ladderAscendTask() move too little in past ${TRACK_TICKS} ticks!`);
+				logger(`ladderAscendTask() now pos.y=${now_y}`);
+				logger(`ladderAscendTask() ${TRACK_TICKS} ticks ago pos.y=${last_y}`);
+				throw new MovePathBlockedError();
+			}
+			last_y = now_y;
+		}
+	} while (true);
 	task._ready(time_used);
 }
 
@@ -267,5 +326,19 @@ export default function inject(bot) {
 		bot.setControlState('jump', true);
 		await bot.waitForTicks(1);
 		bot.setControlState('jump', false);
+	};
+
+	bot.control.ladderAscend = (target_y) => {
+		let task = new Task();
+		queueMicrotask(async () => {
+			try {
+				task._start();
+				await ladderAscendTask(bot, task, target_y);
+			} catch(err) {
+				bot.clearControlStates();
+				task._fail(err);
+			}
+		});
+		return task;
 	};
 }
