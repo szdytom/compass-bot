@@ -57,6 +57,7 @@ async function main() {
 	await waitEvent(bot, 'inject_allowed');
 	bot.loadPlugin((await import('mineflayer-event-promise')).default);
 	bot.loadPlugin((await import('mineflayer-control')).default);
+	bot.loadPlugin((await import('mineflayer-fly-control')).default);
 	await bot.waitEvent('spawn');
 
 	async function loadReplContextModules(context) {
@@ -76,8 +77,10 @@ async function main() {
 		context.sc = {};
 		context.sc.pos = () => bot.entity.position;
 		context.sc.debug_mfc = () => debug.enable('mineflayer-control');
+		context.sc.debug_mff = () => debug.enable('mineflayer-fly-control');
 		context.sc.q = () => bot.quit();
 		context.sc.sleep = asyncSleep;
+		context.sc.tossHeld = () => bot.tossStack(bot.heldItem);
 	}
 
 	if (!args.noRepl) {
@@ -89,6 +92,8 @@ async function main() {
 			terminal: true,
 			ignoreUndefined: true,
 		});
+
+		r.on('exit', () => bot.quit());
 		loadReplContextModules(r.context);
 	}
 }
