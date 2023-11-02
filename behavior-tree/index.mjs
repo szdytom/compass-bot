@@ -31,9 +31,7 @@ export class ControlNode extends Node {
 };
 
 export class SequenceNode extends ControlNode {
-	constructor() {
-		super();
-	}
+	constructor() { super(); }
 
 	async tick(blackboard) {
 		for (let child of this.children) {
@@ -47,6 +45,7 @@ export class FallbackNode extends ControlNode {
 
 	async tick(blackboard) {
 		for (let i = 0; i < this.children.length; i += 1) {
+			let child = this.children[i];
 			try {
 				await child.tick(blackboard);
 				break;
@@ -60,5 +59,7 @@ export class FallbackNode extends ControlNode {
 export class ParallelNode extends ControlNode {
 	constructor() { super(); }
 
-	async tick(blackboard) {}
+	tick(blackboard) {
+		return Promise.all(this.children.map(child => child(blackboard)));
+	}
 }
