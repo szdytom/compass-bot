@@ -97,12 +97,16 @@ export class MovePathBlockedError extends Error {
 	constructor() { super('Move path is possiblely blocked.'); }
 };
 
+export class NotOnGroundError extends Error {
+	constructor() { super('bot is not on ground, cannot jump'); }
+};
+
 async function moveAxisTask(bot, task, axis_raw, target_raw, level) {
 	const axis = AXIS[axis_raw];
 	assert.equal(typeof axis, 'number', 'axis');
 	assert.ok(0 <= axis && axis <= 3, 'axis');
 	assert.equal(typeof level, 'number', 'level');
-	assert.ok(target instanceof Vec3, 'target');
+	assert.ok(target_raw instanceof Vec3, 'target');
 	const stable_axis = "xz"[axis % 2];
 	const target = target_raw.clone();
 	adjustXZ(target);
@@ -145,7 +149,7 @@ async function moveAxisTask(bot, task, axis_raw, target_raw, level) {
 	let time_used = 0, pos_queue = new Queue();
 	const TRACK_TICKS = 5;
 	pos_queue.push(pos.clone());
-	do {
+	while (true) {
 		await bot.waitForTicks(1);
 		task._interuptableHere();
 
@@ -194,7 +198,7 @@ async function moveAxisTask(bot, task, axis_raw, target_raw, level) {
 			logger('moveAxisTask() went past target.');
 			throw new MoveInterferedError();
 		}
-	} while (true);
+	}
 	bot.clearControlStates();
 	task._ready(time_used);
 }
@@ -216,7 +220,7 @@ async function ladderAscendTask(bot, task, target_y) {
 
 	const TRACK_TICKS = 10;
 	let time_used = 0,  last_y = start_pos.y;
-	do {
+	while (true) {
 		await bot.waitForTicks(1);
 		task._interuptableHere();
 		time_used += 1;
@@ -247,7 +251,7 @@ async function ladderAscendTask(bot, task, target_y) {
 			}
 			last_y = now_y;
 		}
-	} while (true);
+	}
 	task._ready(time_used);
 }
 
@@ -272,6 +276,12 @@ export default function inject(bot) {
 
 	bot.control.jumpUp = async (axis_raw, time=5) => {
 		const axis = AXIS[axis_raw];
+		assert.ok(typeof axis == 'number');
+		assert.ok(0 <= axis && axis <= 3);
+		assert.ok(typeof time == 'number');
+		if (!bot.entity.onGround) {
+			throw new NotOnGroundError();
+		}
 		bot.control.adjustXZ();
 		await bot.look(axis * Math.PI / 2, 0, true);
 		let controls = new ControlState('forward', 'jump');
@@ -289,6 +299,14 @@ export default function inject(bot) {
 		if (tactic == null) { tactic = {}; }
 		if (tactic.sprint == null) { tactic.sprint = dis > 3; }
 		if (tactic.speed == null) { tactic.speed = tactic.sprint ? .355 : .216; }
+		assert.ok(typeof axis == 'number');
+		assert.ok(0 <= axis && axis <= 3);
+		assert.ok(typeof dis == 'number');
+		assert.ok(typeof tactic.sprint == 'boolean');
+		assert.ok(typeof tactic.speed == 'number');
+		if (!bot.entity.onGround) {
+			throw new NotOnGroundError();
+		}
 
 		const axis = AXIS[axis_raw];
 		bot.control.adjustXZ();
@@ -323,9 +341,48 @@ export default function inject(bot) {
 	}
 
 	bot.control.jump = async () => {
+		if (!bot.entity.onGround) {
+			throw new NotOnGroundError();
+		}
 		bot.setControlState('jump', true);
 		await bot.waitForTicks(1);
 		bot.setControlState('jump', false);
+	};
+
+	bot.control.jumpToHighest = () => {
+		let task = new Task();
+		queueMicrotask(async () => {
+			try {
+				task._start();
+
+				if (!bot.entity.onGround) {
+					throw new NotOnGroundError();
+				}
+
+				let controls = new ControlState('jump');
+				controls.apply(bot);
+
+				let time_used = 0;
+				while (true) {
+					await bot.waitForTicks(1);
+					task._interuptableHere();
+
+					time_used += 1;
+					if (time_used == 1) {
+						controls.jump = false;
+						controls.apply(bot);
+					}
+					if (bot.entity.velocity.y < 0) {
+						break;
+					} 
+				}
+				task._ready(time_used);
+			} catch(err) {
+				bot.clearControlStates();
+				task._fail(err);
+			}
+		});
+		return task;
 	};
 
 	bot.control.ladderAscend = (target_y) => {
