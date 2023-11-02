@@ -1,0 +1,99 @@
+diff --git a/node_modules/mineflayer/lib/plugins/entities.js b/node_modules/mineflayer/lib/plugins/entities.js
+index 85cbf2e..df73887 100644
+--- a/node_modules/mineflayer/lib/plugins/entities.js
++++ b/node_modules/mineflayer/lib/plugins/entities.js
+@@ -369,7 +369,7 @@ function inject (bot) {
+     }
+     if (bot.fireworkRocketDuration !== 0 && entity.id === bot.entity?.id && !elytraFlying) {
+       bot.fireworkRocketDuration = 0
+-      knownFireworks.splice(0, knownFireworks.length)
++      knownFireworks.clear()
+     }
+ 
+     if (startedFlying) {
+@@ -377,28 +377,17 @@ function inject (bot) {
+     }
+   }
+ 
+-  const knownFireworks = []
++  const knownFireworks = new Set();
+   function handleBotUsedFireworkRocket (fireworkEntityId, fireworkInfo) {
+-    if (knownFireworks.includes(fireworkEntityId)) return
+-    knownFireworks.push(fireworkEntityId)
+-    let flightDur = 1
+-    if (fireworkInfo?.nbtData != null) {
+-      let nbt = fireworkInfo.nbtData
+-      if (nbt.type === 'compound' && nbt.value.Fireworks != null) {
+-        nbt = nbt.value.Fireworks
+-        if (nbt.type === 'compound' && nbt.value.Flight != null) {
+-          nbt = nbt.value.Flight
+-          if (nbt.type === 'int') {
+-            flightDur += nbt.value
+-          }
+-        }
+-      }
+-    }
+-    const baseDuration = 10 * flightDur
++    if (knownFireworks.has(fireworkEntityId)) return
++    knownFireworks.add(fireworkEntityId)
++    let flightDur = fireworkInfo?.nbtData?.value?.Fireworks?.value?.Flight.value ?? 1
++    if (typeof flightDur !== 'number') { flightDur = 1 }
++    const baseDuration = 10 * (flightDur + 1)
+     const randomDuration = Math.floor(Math.random() * 6) + Math.floor(Math.random() * 7)
+     bot.fireworkRocketDuration = baseDuration + randomDuration
+ 
+-    bot.emit('usedFirework')
++    bot.emit('usedFirework', fireworkEntityId)
+   }
+ 
+   let fireworkEntityName
+diff --git a/node_modules/mineflayer/lib/plugins/inventory.js b/node_modules/mineflayer/lib/plugins/inventory.js
+index 1314205..7f28008 100644
+--- a/node_modules/mineflayer/lib/plugins/inventory.js
++++ b/node_modules/mineflayer/lib/plugins/inventory.js
+@@ -10,7 +10,7 @@ module.exports = inject
+ const DIG_CLICK_TIMEOUT = 500
+ // The number of milliseconds to wait for the server to respond with consume completion.
+ // This number is larger than the eat time of 1.61 seconds to account for latency and low tps.
+-// The eat time comes from https://minecraft.fandom.com/wiki/Food#Usage
++// The eat time comes from https://minecraft.wiki/w/Food#Usage
+ const CONSUME_TIMEOUT = 2500
+ // milliseconds to wait for the server to respond to a window click transaction
+ const WINDOW_TIMEOUT = 5000
+@@ -43,8 +43,24 @@ function inject (bot, { hideErrors }) {
+   bot.quickBarSlot = null
+   bot.inventory = windows.createWindow(0, 'minecraft:inventory', 'Inventory')
+   bot.currentWindow = null
+-  bot.heldItem = null
+   bot.usingHeldItem = false
++  Object.defineProperty(bot, 'heldItem', {
++    get: function () {
++      return bot.inventory.slots[bot.QUICK_BAR_START + bot.quickBarSlot]
++    },
++  })
++
++  bot.on('spawn', () => {
++    Object.defineProperty(bot.entity, 'equipment', {
++      get: bot.supportFeature('doesntHaveOffHandSlot') ? function() {
++        return [bot.heldItem, bot.inventory.slots[8], bot.inventory.slots[7],
++          bot.inventory.slots[6], bot.inventory.slots[5]]
++      } : function() {
++        return [bot.heldItem, bot.inventory.slots[45], bot.inventory.slots[8],
++          bot.inventory.slots[7], bot.inventory.slots[6], bot.inventory.slots[5]]
++      },
++    });
++  });
+ 
+   bot._client.on('entity_status', (packet) => {
+     if (packet.entityId === bot.entity.id && packet.entityStatus === 9 && !eatingTask.done) {
+@@ -364,9 +380,7 @@ function inject (bot, { hideErrors }) {
+   }
+ 
+   function updateHeldItem () {
+-    bot.heldItem = bot.inventory.slots[bot.QUICK_BAR_START + bot.quickBarSlot]
+-    bot.entity.heldItem = bot.heldItem
+-    bot.emit('heldItemChanged', bot.entity.heldItem)
++    bot.emit('heldItemChanged', bot.heldItem)
+   }
+ 
+   function closeWindow (window) {

@@ -9,15 +9,18 @@
   },
   "dependencies": {
     "axios": "^1.6.0",
+    "compass-utils": "file:utils",
     "debug": "^4.3.4",
     "mineflayer": "^4.14.0",
-    "mineflayer-event-promise": "file:plugin/event-promise",
-    "compass-utils": "file:utils",
     "mineflayer-control": "file:plugin/control",
+    "mineflayer-event-promise": "file:plugin/event-promise",
     "mineflayer-fly-control": "file:plugin/fly-control",
     "yargs": "^17.7.2"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "patch-package": "^8.0.0"
   }
 }
