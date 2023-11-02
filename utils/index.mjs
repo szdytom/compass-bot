@@ -4,3 +4,4 @@ export { readJsonFile, writeJsonFile, parseLogin, waitEvent,
 export { Queue, QueueEmptyError } from './queue.mjs';
 export { AsyncLock } from './async-lock.mjs';
 export { Task, TaskInteruptedError } from './task.mjs';
+export { PriorityQueue } from './priority-queue.mjs';
