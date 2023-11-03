@@ -65,6 +65,7 @@ async function main() {
 		context.lib = {
 			utils: await import('compass-utils'),
 			control: await import('mineflayer-control'),
+			flyctl: await import('mineflayer-fly-control'),
 		};
 		context.bot = bot;
 		context.Vec3 = (await import('vec3')).Vec3;
@@ -79,7 +80,6 @@ async function main() {
 		context.sc.pos = () => bot.entity.position;
 		context.sc.debug_mfc = () => debug.enable('mineflayer-control');
 		context.sc.debug_mff = () => debug.enable('mineflayer-fly-control');
-		context.sc.q = () => bot.quit();
 		context.sc.sleep = asyncSleep;
 		context.sc.tossHeld = () => bot.tossStack(bot.heldItem);
 	}
