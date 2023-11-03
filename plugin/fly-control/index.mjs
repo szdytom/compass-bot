@@ -40,11 +40,11 @@ async function takeOffTask(bot, task) {
 	task._interuptableHere();
 }
 
-function potentialHeightRequired(xz_distance) {
-	return xz_distance / 9.1 + 16;
+export function potentialHeightRequired(xz_distance) {
+	return xz_distance / 9.1 + 32;
 }
 
-function yawOfXZ(pos, target) {
+export function yawOfXZ(pos, target) {
 	const delta = target.minus(pos);
 	return Math.atan2(-delta.x, -delta.z);
 }
@@ -102,8 +102,6 @@ async function cruiseTask(bot, task, target, tlimit) {
 				break;
 			} else {
 				logger(`cruiseTask() goal reached, adjusting. position=${pos}`);
-				logger(`cruiseTask() to target delta=${target.minus(pos)} distance=${error_dis}`);
-				logger(`cruiseTask() velocity=${velocity} hspeed=${hspeed}`);
 				await updateRoute();
 				logger(`cruiseTask() replanned. facing: ${bot.entity.yaw}`);
 			}
@@ -127,7 +125,7 @@ async function gracefulLandTask(bot, task, target_y, fall_height) {
 	logger(`gracefulLandTask() starting position=${start_pos}`);
 	await bot.look(0, Math.PI / 6);
 	task._interuptableHere();
-	bot.entity.velocity.setXZ(0, 0);
+	bot.entity.velocity.set(0, 0, 0);
 
 	logger(`gracefulLandTask() secondary position=${start_pos}`);
 	bot.entity.position.updateXZ(start_pos);
@@ -270,7 +268,7 @@ export default function inject(bot) {
 		return bot.flyctl.ascend(target_y, false);
 	};
 
-	bot.flyctl.gracefulLand = (target_y, fall_height=4) => {
+	bot.flyctl.gracefulLand = (target_y, fall_height=3) => {
 		let task = new Task();
 		queueMicrotask(async () => {
 			try {
@@ -286,7 +284,7 @@ export default function inject(bot) {
 		return task;
 	};
 
-	bot.flyctl.cruise = (target_raw, teleport_limit=2.5) => {
+	bot.flyctl.cruise = (target_raw, teleport_limit=1) => {
 		let task = new Task();
 		queueMicrotask(async () => {
 			try {
@@ -308,7 +306,7 @@ export default function inject(bot) {
 			tactic = tactic ?? {};
 			tactic.ascend_mode = tactic.ascend_mode ?? 'graceful';
 			tactic.teleport_limit = tactic.teleport_limit ?? 2.5;
-			tactic.fall_height = tactic.teleport_limit ?? 4;
+			tactic.fall_height = tactic.teleport_limit ?? 1;
 
 			try {
 				task._start();
@@ -325,8 +323,10 @@ export default function inject(bot) {
 
 				await cruiseTask(bot, task, target, tactic.teleport_limit);
 				await gracefulLandTask(bot, task, target.y, tactic.fall_height);
+				await bot.equip(elytra_id, 'torso');
 				task._ready();
 			} catch(err) {
+				await bot.equip(elytra_id, 'torso');
 				task._fail(err);
 			}
 		});
