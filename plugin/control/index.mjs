@@ -288,6 +288,7 @@ export default function inject(bot) {
 		if (tactic == null) { tactic = {}; }
 		if (tactic.sprint == null) { tactic.sprint = dis > 3; }
 		if (tactic.speed == null) { tactic.speed = tactic.sprint ? .355 : .216; }
+		const axis = AXIS[axis_raw];
 		assert.ok(typeof axis == 'number');
 		assert.ok(0 <= axis && axis <= 3);
 		assert.ok(typeof dis == 'number');
@@ -297,7 +298,6 @@ export default function inject(bot) {
 			throw new NotOnGroundError();
 		}
 
-		const axis = AXIS[axis_raw];
 		bot.control.centralizeXZ();
 		let target = bot.entity.position.plus(AXIS_UNIT[axis].scaled(dis));
 		logger(`jumpForward() axis: ${"zx"[axis % 2]}`);
