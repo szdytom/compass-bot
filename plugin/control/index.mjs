@@ -1,6 +1,7 @@
 import debug from 'debug';
 import { Queue, Task, isIterable } from 'compass-utils';
 import { Vec3 } from 'vec3';
+import 'enhanced-vec3';
 import assert from 'node:assert/strict';
 const logger = debug('mineflayer-control');
 
@@ -80,15 +81,6 @@ export class ControlState {
 
 ControlState.CONTROLS = ['forward', 'back', 'left', 'right', 'jump', 'sprint', 'sneak'];
 
-function adjust05(x) {
-	return Math.floor(x) + .5;
-}
-
-function adjustXZ(vec) {
-	vec.x = adjust05(vec.x);
-	vec.z = adjust05(vec.z);
-}
-
 export class MoveInterferedError extends Error {
 	constructor() { super('Move task has been interfered by an external force.'); }
 };
@@ -109,10 +101,10 @@ async function moveAxisTask(bot, task, axis_raw, target_raw, level) {
 	assert.ok(target_raw instanceof Vec3, 'target');
 	const stable_axis = "xz"[axis % 2];
 	const target = target_raw.clone();
-	adjustXZ(target);
+	target.centralizeXZ();
 
 	bot.clearControlStates();
-	bot.control.adjustXZ();
+	bot.control.centralizeXZ();
 
 	let pos = bot.entity.position;
 	const delta = target.minus(pos);
@@ -187,10 +179,8 @@ async function moveAxisTask(bot, task, axis_raw, target_raw, level) {
 		remaining_dis = delta.dot(AXIS_UNIT[axis]);
 		if (Math.abs(remaining_dis) <= 0.5) {
 			logger(`moveAxisTask() very close! remain: ${remaining_dis}.`);
-			pos.x = target.x;
-			pos.z = target.z;
-			bot.entity.velocity.x = 0;
-			bot.entity.velocity.z = 0;
+			pos.updateXZ(target);
+			bot.entity.velocity.setXZ(0, 0);
 			break;
 		}
 
@@ -205,7 +195,7 @@ async function moveAxisTask(bot, task, axis_raw, target_raw, level) {
 
 async function ladderAscendTask(bot, task, target_y) {
 	assert.equal(typeof target_y, 'number', 'target_y');
-	bot.control.adjustXZ();
+	bot.control.centralizeXZ();
 	const start_pos = bot.entity.position.clone();
 	logger(`ladderAscendTask() initial position: ${start_pos}.`);
 	logger(`ladderAscendTask() target y: ${target_y}.`);
@@ -227,7 +217,7 @@ async function ladderAscendTask(bot, task, target_y) {
 
 		const pos = bot.entity.position;
 		if (pos.xzDistanceTo(start_pos) > 1) { throw new MoveInterferedError(); }
-		bot.control.adjustXZ();
+		bot.control.centralizeXZ();
 
 		if (Math.abs(pos.y - target_y) < 0.2) {
 			logger('ladderAscendTask() reached.');
@@ -258,7 +248,7 @@ async function ladderAscendTask(bot, task, target_y) {
 export default function inject(bot) {
 	bot.control = {};
 	bot.control.getState = () => { return ControlState.from(bot.controlState); };
-	bot.control.adjustXZ = () => { adjustXZ(bot.entity.position); };
+	bot.control.centralizeXZ = () => { bot.entity.position.centralizeXZ(); };
 
 	bot.control.moveAxis = (axis, target, level = MOVE_LEVEL.SPRINT) => {
 		let task = new Task();
@@ -282,7 +272,7 @@ export default function inject(bot) {
 		if (!bot.entity.onGround) {
 			throw new NotOnGroundError();
 		}
-		bot.control.adjustXZ();
+		bot.control.centralizeXZ();
 		await bot.look(axis * Math.PI / 2, 0, true);
 		let controls = new ControlState('forward', 'jump');
 		let pos = bot.entity.position;
@@ -290,8 +280,7 @@ export default function inject(bot) {
 		await bot.waitForTicks(time);
 		bot.clearControlStates();
 		bot.entity.position.update(pos.plus(AXIS_UNIT[axis]).offset(0, 1, 0));
-		bot.entity.velocity.x = 0;
-		bot.entity.velocity.z = 0;
+		bot.entity.velocity.setXZ(0, 0);
 		await bot.waitForTicks(1);
 	};
 
@@ -309,7 +298,7 @@ export default function inject(bot) {
 		}
 
 		const axis = AXIS[axis_raw];
-		bot.control.adjustXZ();
+		bot.control.centralizeXZ();
 		let target = bot.entity.position.plus(AXIS_UNIT[axis].scaled(dis));
 		logger(`jumpForward() axis: ${"zx"[axis % 2]}`);
 		logger(`jumpForward() target: ${target}`);
@@ -334,10 +323,8 @@ export default function inject(bot) {
 		if (pos.distanceTo(target) > 1) {
 			throw new MoveInterferedError();
 		}
-		pos.x = target.x;
-		pos.z = target.z;
-		bot.entity.velocity.x = 0;
-		bot.entity.velocity.z = 0;
+		pos.updateXZ(target);
+		bot.entity.velocity.setXZ(0, 0);
 	}
 
 	bot.control.jump = async () => {
