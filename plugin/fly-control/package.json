@@ -6,6 +6,7 @@
 	"dependencies": {
 		"debug": "^4.3.4",
 		"vec3": "^0.1.8",
-		"compass-utils": "file:../../utils"
+		"compass-utils": "file:../../utils",
+		"enhanced-vec3": "file:../../enhanced-vec3"
 	}
 }

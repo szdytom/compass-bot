@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
-import debug from 'debug';
 import { Task } from 'compass-utils';
+import { Vec3 } from 'vec3';
+import 'enhanced-vec3';
+import debug from 'debug';
 const logger = debug('mineflayer-fly-control');
 
 export class ElytraNotEquippedError extends Error {
@@ -19,6 +21,10 @@ export class AlreadyElytraFlyingError extends Error {
 	constructor() { super('Already elytra flying!'); }
 }
 
+export class FlyInterferedError extends Error {
+	constructor() { super('Fly task has been interfered by an external force.'); }
+};
+
 export function fireworkFlight(firework_item) {
 	return firework_item?.nbt?.value?.Fireworks?.value?.Flight?.value ?? 1;
 }
@@ -34,9 +40,146 @@ async function takeOffTask(bot, task) {
 	task._interuptableHere();
 }
 
-async function ascendTask(bot, task, flight, gracefulMode) {
-	assert.ok(typeof flight == 'number');
-	bot.control.adjustXZ();
+function potentialHeightRequired(xz_distance) {
+	return xz_distance / 9.1 + 16;
+}
+
+function yawOfXZ(pos, target) {
+	const delta = target.minus(pos);
+	return Math.atan2(-delta.x, -delta.z);
+}
+
+async function cruiseTask(bot, task, target, tlimit) {
+	bot.control.centralizeXZ();
+	let start_pos = bot.entity.position.clone();
+	let distance_left = target.xzDistanceTo(start_pos);
+	let dy_requirement = potentialHeightRequired(distance_left);
+	let delta = target.minus(start_pos);
+	logger(`cruiseTask() start position=${start_pos}`);
+	logger(`cruiseTask() target position=${target} delta=${delta}`);
+	logger(`cruiseTask() dy_requirement=${dy_requirement}`);
+	if (-delta.y < dy_requirement) {
+		logger(`cruiseTask() height is insufficient: another ${dy_requirement + delta.y} meters required`);
+	}
+
+	let delta_norm_squared;
+	async function updateRoute() {
+		start_pos.update(bot.entity.position);
+		delta = target.minus(start_pos);
+		delta_norm_squared = delta.xzNormSquared();
+		await bot.look(yawOfXZ(start_pos, target), 0, true);
+		task._interuptableHere();
+	}
+	await updateRoute();
+
+	while (true) {
+		await bot.waitForTicks(1);
+		task._interuptableHere();
+
+		if (bot.entity.onGround || !bot.entity.elytraFlying) {
+			logger('cruiseTask() no longer flying!');
+			throw new FlyInterferedError();
+		}
+
+		const pos = bot.entity.position.clone();
+		const dpos = pos.minus(start_pos);
+		const progress = dpos.dotXZ(delta) / delta_norm_squared;
+		const intended_pos = start_pos.plus(delta.scaled(progress));
+		const error_offset = intended_pos.xzDistanceTo(pos);
+		if (progress < 1 && error_offset > 6) {
+			logger(`cruiseTask() departured from expected route, error offset=${error_offset}`);
+			logger(`cruiseTask() progress=${progress} expected position=${intended_pos}`);
+			logger(`cruiseTask() current position=${pos} to start delta=${dpos}`);
+			await updateRoute();
+			logger(`cruiseTask() corrocted fly route.`);
+			continue;
+		}
+
+		if (progress >= 1) {
+			const error_dis = pos.xzDistanceTo(target);
+			const velocity = bot.entity.velocity, hspeed = velocity.xzNorm();
+			if (error_dis < tlimit && hspeed < .5) {
+				break;
+			} else {
+				logger(`cruiseTask() goal reached, adjusting. position=${pos}`);
+				logger(`cruiseTask() to target delta=${target.minus(pos)} distance=${error_dis}`);
+				logger(`cruiseTask() velocity=${velocity} hspeed=${hspeed}`);
+				await updateRoute();
+				logger(`cruiseTask() replanned. facing: ${bot.entity.yaw}`);
+			}
+		}
+
+		if (error_offset < tlimit) {
+			pos.updateXZ(intended_pos);
+		}
+	}
+
+	const final_pos = bot.entity.position;
+	await bot.look(yawOfXZ(final_pos, target), 0, true);
+	final_pos.updateXZ(target);
+}
+
+async function gracefulLandTask(bot, task, target_y, fall_height) {
+	assert.ok(typeof target_y == 'number');
+	assert.ok(typeof fall_height == 'number');
+	bot.control.centralizeXZ();
+	const start_pos = bot.entity.position.clone();
+	logger(`gracefulLandTask() starting position=${start_pos}`);
+	await bot.look(0, Math.PI / 6);
+	task._interuptableHere();
+	bot.entity.velocity.setXZ(0, 0);
+
+	logger(`gracefulLandTask() secondary position=${start_pos}`);
+	bot.entity.position.updateXZ(start_pos);
+
+	logger(`gracefulLandTask() secondary adjusted position=${start_pos}`);
+	logger(`gracefulLandTask() secondary velocity=${bot.entity.velocity}`);
+	const fall_y = fall_height + target_y;
+	for (let phase = 1; !bot.entity.onGround && bot.entity.position.y > fall_y; phase = (phase + 1) % 3) {
+		await bot.look(phase * Math.PI / 1.5, Math.PI / 6);
+		task._interuptableHere();
+		const pos = bot.entity.position;
+		if (pos.xzDistanceTo(start_pos) > 3) {
+			throw new FlyInterferedError();
+		}
+	}
+
+	const ff_pos = bot.entity.position;
+	logger(`gracefulLandTask() fall stage initial position=${ff_pos}`);
+	let look_promise = bot.look(yawOfXZ(ff_pos, start_pos), Math.PI / 6, true);
+	await bot.unequip('torso');
+	task._interuptableHere();
+
+	bot.entity.velocity.setXZ(0, 0);
+	ff_pos.updateXZ(start_pos);
+	logger(`gracefulLandTask() fall stage adjusted position=${ff_pos}`);
+
+	while (!bot.entity.onGround && bot.entity.position.y > target_y) {
+		if (look_promise == null) {
+		await bot.waitForTicks(1);
+		} else {
+			await look_promise;
+			look_promise = null;
+		}
+		task._interuptableHere();
+
+		const pos = bot.entity.position;
+		const t = new Vec3();
+		if (pos.xzDistanceTo(start_pos) > 1) {
+			throw new FlyInterferedError();
+		}
+		bot.control.centralizeXZ();
+	}
+
+	bot.entity.velocity.setXZ(0, 0);
+	logger(`gracefulLandTask() finish position=${bot.entity.position}`);
+}
+
+async function ascendTask(bot, task, target_y, gracefulMode) {
+	assert.ok(typeof target_y == 'number');
+	if (target_y <= bot.entity.position.y) { return 0; }
+
+	bot.control.centralizeXZ();
 	await bot.look(0, Math.PI / 2, true);
 	task._interuptableHere();
 
@@ -49,17 +192,30 @@ async function ascendTask(bot, task, flight, gracefulMode) {
 	}
 
 	function fastModePredicate() {
-		return bot.fireworkRocketDuration > 0;
+		return bot.fireworkRocketDuration > 0 || bot.entity.velocity.y > 27;
 	}
 
 	const predicate = gracefulMode ? gracefulModePredicate : fastModePredicate;
 
-	let flight_pre_rocket = fireworkFlight(bot.heldItem);
-	for (let i = 0; i < flight; i += flight_pre_rocket) {
+	const firework_id = bot.registry.itemsByName.firework_rocket.id;
+	while (bot.entity.position.y < target_y) {
+		if (bot.heldItem?.type != firework_id) {
+			try {
+				await bot.equip(firework_id);
+			} catch (err) {
+				logger(`ascendTask(): equip rocket error: ${err}.`);
+				throw new InsufficientRocketError();
+			}
+			task._interuptableHere();
+		}
 		bot.activateItem();
 		do {
-			await bot.waitForTicks(Math.max(1, bot.fireworkRocketDuration));
+			await bot.waitForTicks(1);
 			task._interuptableHere();
+
+			if (bot.entity.onGround || !bot.entity.elytraFlying) {
+				throw new FlyInterferedError();
+			}
 		} while (predicate());
 	}
 }
@@ -71,38 +227,20 @@ export default function inject(bot) {
 
 	bot.flyctl = {};
 	bot.flyctl.skipValidation = false;
-	function beforeFlyValidation(flight_requirement = 0) {
-		assert.ok(typeof flight_requirement == 'number');
-		assert.ok(flight_requirement >= 0);
-
+	function beforeFlightValidation() {
 		if (bot.flyctl.skipValidation) {
-			logger('beforeFlyValidation() skipped.');
+			logger('beforeFlightValidation() skipped.');
 			return;
 		}
 
-		logger(`beforeFlyValidation() elytra slot: ${elytra_slot}`);
 		let elytra_slot_item = bot.inventory.slots[elytra_slot]?.type;
 		if (elytra_slot_item != elytra_id) {
-			logger(`beforeFlyValidation() failed: elytra slot found ${elytra_slot_item}.`);
-			logger(`beforeFlyValidation() expected ${elytra_id}.`);
+			logger(`beforeFlightValidation() failed: elytra slot found ${elytra_slot_item}.`);
+			logger(`beforeFlightValidation() expected ${elytra_id}.`);
 			throw new ElytraNotEquippedError();
 		}
 
-		if (flight_requirement > 0) {
-			let rocket_item = bot.heldItem;
-			if (rocket_item?.type != firework_id) {
-				logger('beforeFlyValidation() failed: holding is not rocket.');
-				logger(`beforeFlyValidation() found ${rocket_item?.type} expected ${firework_id} .`);
-				throw new InsufficientRocketError(flight_requirement, 0);
-			}
-
-			let flight_sum = rocket_item.count * fireworkFlight(rocket_item);
-			if (flight_sum < flight_requirement) {
-				throw new InsufficientRocketError(flight_requirement, flight_sum);
-			}
-		}
-
-		logger('beforeFlyValidation() passed.');
+		logger('beforeFlightValidation() passed.');
 	}
 
 	bot.flyctl.prepare = async () => {
@@ -110,12 +248,13 @@ export default function inject(bot) {
 		await bot.equip(firework_id);
 	};
 
-	bot.flyctl.ascend = async (flight = 1, gracefulMode = true) => {
+	bot.flyctl.ascend = (target_y, gracefulMode = true) => {
 		let task = new Task();
 		queueMicrotask(async () => {
 			try {
-				beforeFlyValidation(flight);
-				task._ready(await ascendTask(bot, task, flight, gracefulMode));
+				task._start();
+				beforeFlightValidation();
+				task._ready(await ascendTask(bot, task, target_y, gracefulMode));
 			} catch(err) {
 				task._fail(err);
 			}
@@ -123,19 +262,83 @@ export default function inject(bot) {
 		return task;
 	};
 
-	bot.flyctl.gracefulAscend = (flight = 1) => {
-		return bot.flyctl.ascend(flight, true);
+	bot.flyctl.gracefulAscend = (target_y) => {
+		return bot.flyctl.ascend(target_y, true);
 	};
 
-	bot.flyctl.fastAscend = (flight = 1) => {
-		return bot.flyctl.ascend(flight, false);
+	bot.flyctl.fastAscend = (target_y) => {
+		return bot.flyctl.ascend(target_y, false);
 	};
+
+	bot.flyctl.gracefulLand = (target_y, fall_height=4) => {
+		let task = new Task();
+		queueMicrotask(async () => {
+			try {
+				task._start();
+				await gracefulLandTask(bot, task, target_y, fall_height);
+				await bot.equip(elytra_id, 'torso');
+				task._ready();
+			} catch(err) {
+				await bot.equip(elytra_id, 'torso');
+				task._fail(err);
+			}
+		});
+		return task;
+	};
+
+	bot.flyctl.cruise = (target_raw, teleport_limit=2.5) => {
+		let task = new Task();
+		queueMicrotask(async () => {
+			try {
+				task._start();
+				assert.ok(target_raw instanceof Vec3);
+				const target = target_raw.clone();
+				target.centralizeXZ();
+				task._ready(await cruiseTask(bot, task, target, teleport_limit));
+			} catch(err) {
+				task._fail(err);
+			}
+		});
+		return task;
+	};
+
+	bot.flyctl.autoFlyTo = (target_raw, tactic) => {
+		let task = new Task();
+		queueMicrotask(async () => {
+			tactic = tactic ?? {};
+			tactic.ascend_mode = tactic.ascend_mode ?? 'graceful';
+			tactic.teleport_limit = tactic.teleport_limit ?? 2.5;
+			tactic.fall_height = tactic.teleport_limit ?? 4;
+
+			try {
+				task._start();
+				assert.ok(target_raw instanceof Vec3);
+				const target = target_raw.clone();
+				target.centralizeXZ();
+				beforeFlightValidation();
+				const start_pos = bot.entity.position;
+
+				let dy = potentialHeightRequired(start_pos.xzDistanceTo(target));
+				const graceful_ascend = tactic.ascend_mode === 'graceful';
+				const take_off_y = Math.max(target.y + dy, start_pos.y + 2);
+				await ascendTask(bot, task, take_off_y, graceful_ascend);
+
+				await cruiseTask(bot, task, target, tactic.teleport_limit);
+				await gracefulLandTask(bot, task, target.y, tactic.fall_height);
+				task._ready();
+			} catch(err) {
+				task._fail(err);
+			}
+		});
+		return task;
+	}
 
 	bot.flyctl.takeOff = () => {
 		let task = new Task();
 		queueMicrotask(async () => {
 			try {
-				beforeFlyValidation(flight);
+				task._start();
+				beforeFlightValidation();
 				task._ready(await takeOffTask(bot, task));
 			} catch(err) {
 				task._fail(err);
