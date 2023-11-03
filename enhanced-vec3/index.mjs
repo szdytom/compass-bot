@@ -29,7 +29,7 @@ Vec3.prototype.xzNorm = function xzNorm() {
 };
 
 Vec3.prototype.dotXZ = function dotXZ(other) {
-	return (this.x * other.x) + (this.y * other.y);
+	return (this.x * other.x) + (this.z * other.z);
 };
 
 Vec3.prototype.crossXZ = function crossXZ(other) {
