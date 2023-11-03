@@ -3,6 +3,7 @@ import mineflayer from 'mineflayer';
 import yargs from 'yargs';
 import { asyncSleep, parseLogin, waitEvent } from 'compass-utils';
 import repl from 'node:repl';
+import 'enhanced-vec3';
 import debug from 'debug';
 
 async function main() {

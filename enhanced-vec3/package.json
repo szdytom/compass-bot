@@ -1,0 +1,12 @@
+{
+	"name": "enhanced-vec3",
+	"description": "More methods for vec3",
+	"type": "module",
+	"main": "index.mjs",
+	"types": "index.d.ts",
+	"dependencies": {
+		"debug": "^4.3.4",
+		"vec3": "^0.1.8",
+		"compass-utils": "file:../../utils"
+	}
+}
