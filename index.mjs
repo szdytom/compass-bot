@@ -5,6 +5,8 @@ import { asyncSleep, parseLogin, waitEvent } from 'compass-utils';
 import repl from 'node:repl';
 import 'enhanced-vec3';
 import debug from 'debug';
+import { createLocalRepl, createTcpReplServer } from './repl/index.mjs';
+import { randomBytes } from 'node:crypto';
 
 async function main() {
 	const args = yargs((await import('yargs/helpers')).hideBin(process.argv))
@@ -16,8 +18,8 @@ async function main() {
 		description: 'Bot\'s owner name.',
 		type: 'string',
 		requiresArg: false,
-	}).option('no-repl', {
-		description: 'Disable bot REPL control.',
+	}).option('no-local-repl', {
+		description: 'Disable bot REPL control in current stdin/stdout.',
 		type: "boolean",
 	}).option('credentials-lib', {
 		description: 'Credentials\' library file.',
@@ -26,11 +28,22 @@ async function main() {
 	}).option('offline', {
 		description: 'Login without credentials.',
 		type: 'boolean',
-	}).usage('Uasge: profile@host:port').help().alias('help', 'h').argv;
+	}).option('enable-tcp-repl', {
+		description: 'Enable bot REPL control as a TCP service.',
+		type: 'boolean',
+	}).option('tcp-repl-port', {
+		description: 'Telnet REPL service port.',
+		type: 'number',
+		default: 2121,
+	}).option('remote-repl-passcode-length', {
+		description: 'Length of remote REPL passcode in bytes',
+		type: 'number',
+		default: 8,
+	}).usage('Uasge: profile@hostname[:port]').help().alias('help', 'h').argv;
 
 	let login_info = args._[0];
 	if (login_info == null) { return; }
-	const [name, host, port] = parseLogin(login_info);
+	const [name, hostname, port] = parseLogin(login_info);
 
 	let session, endpoint = null;
 	if (args.offline) {
@@ -45,7 +58,7 @@ async function main() {
 	}
 
 	const bot = mineflayer.createBot({
-		host, port, version: args.protocal,
+		host: hostname, port, version: args.protocal,
 		...session.mineflayer(endpoint)
 	});
 	bot.on('error', console.error);
@@ -61,6 +74,7 @@ async function main() {
 	bot.loadPlugin((await import('mineflayer-fly-control')).default);
 	await bot.waitEvent('spawn');
 
+	const context_shared = {};
 	async function loadReplContextModules(context) {
 		context.lib = {
 			utils: await import('compass-utils'),
@@ -75,7 +89,9 @@ async function main() {
 			return bot.players[args.owner];
 		};
 
+		context.PI = Math.PI;
 		context.debug = debug;
+		context.bb = context_shared;
 		context.sc = {};
 		context.sc.pos = () => bot.entity.position;
 		context.sc.debug_mfc = () => debug.enable('mineflayer-control');
@@ -84,22 +100,20 @@ async function main() {
 		context.sc.tossHeld = () => bot.tossStack(bot.heldItem);
 	}
 
-	if (!args.noRepl) {
-		let r = repl.start({
-			prompt: 'local > ',
-			input: process.stdin,
-			output: process.stdout,
-			color: true,
-			terminal: true,
-			ignoreUndefined: true,
-		});
+	if (args.enableTcpRepl) {
+		const passcode = randomBytes(args.remoteReplPasscodeLength);
+		console.log('Remote REPL Passcode:', passcode.toString('hex'));
+		let server = createTcpReplServer(args.tcpReplPort, passcode, loadReplContextModules);
+		process.on('exit', () => server.close());
+	}
 
-		r.on('exit', () => bot.quit());
-		loadReplContextModules(r.context);
+	if (!args.noLocalRepl) {
+		let repl_local = createLocalRepl(loadReplContextModules);
+		repl_local.on('exit', () => bot.quit());
 	}
 }
 
 main().catch(err => {
-	console.error('Error: ', err);
+	console.error(`Error: ${err}`);
 	process.exit(1);
 });

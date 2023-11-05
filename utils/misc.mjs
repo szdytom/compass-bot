@@ -30,15 +30,23 @@ export function waitEvent(em, event) {
 	});
 }
 
-export function asyncSleep(t) {
+/**
+ * @param {number} timeout
+ * @returns {Promise<void>}
+ */
+export function asyncSleep(timeout) {
 	return new Promise((resolve, _reject) => {
-		setTimeout(resolve, t);
+		setTimeout(resolve, timeout);
 	});
 }
 
-export function asyncTimeout(t) {
+/**
+ * @param {number} timeout
+ * @returns {Promise<void>}
+ */
+export function asyncTimeout(timeout) {
 	return new Promise((_resolve, reject) => {
-		setTimeout(reject, t);
+		setTimeout(reject, timeout);
 	});
 }
 
