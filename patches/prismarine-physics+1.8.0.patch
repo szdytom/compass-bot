@@ -1,79 +1,34 @@
 diff --git a/node_modules/prismarine-physics/index.js b/node_modules/prismarine-physics/index.js
-index 2ef4ca1..85f7ea8 100644
+index 2ef4ca1..1d6b344 100644
 --- a/node_modules/prismarine-physics/index.js
 +++ b/node_modules/prismarine-physics/index.js
-@@ -4,12 +4,43 @@ const math = require('./lib/math')
- const features = require('./lib/features')
- const attribute = require('./lib/attribute')
- 
--function makeSupportFeature (mcData) {
--  return feature => features.some(({ name, versions }) => name === feature && versions.includes(mcData.version.majorVersion))
--}
-+class FeatureList {
-+  static checkVersion(version, condition) {
-+    const [predicateName, parameter] = condition.split(' ')
-+    if (parameter == null) { return predicateName === version.majorVersion }
-+    return version[predicateName](parameter)
-+  }
-+
-+  constructor(version) {
-+    this.version = version;
-+    this.features = new Set();
-+    for (const { name, versions } of features) {
-+      for (const versionConditions of versions) {
-+        let flag = true
-+        if (versionConditions instanceof Array) {
-+          for (const condition of versionConditions) {
-+            flag &= FeatureList.checkVersion(version, condition)
-+          }
-+        } else {
-+          flag = FeatureList.checkVersion(version, versionConditions)
-+        }
-+
-+        if (flag) {
-+          this.features.add(name)
-+          break
-+        }
-+      }
-+    }
-+  }
-+
-+  supportFeature(featureName) {
-+    return this.features.has(featureName);
-+  }
-+};
- 
- function Physics (mcData, world) {
--  const supportFeature = makeSupportFeature(mcData)
-+  const supportedFeatureList = new FeatureList(mcData.version)
-+  const supportFeature = (name) => supportedFeatureList.supportFeature(name)
-   const blocksByName = mcData.blocksByName
- 
-   // Block Slipperiness
-@@ -33,6 +64,21 @@ function Physics (mcData, world) {
-   const waterIds = [blocksByName.water.id, blocksByName.flowing_water ? blocksByName.flowing_water.id : -1]
+@@ -34,6 +34,21 @@ function Physics (mcData, world) {
    const lavaIds = [blocksByName.lava.id, blocksByName.flowing_lava ? blocksByName.flowing_lava.id : -1]
    const ladderId = blocksByName.ladder.id
+   const vineId = blocksByName.vine.id
 +
 +  // NOTE: Copper trapdoors is coming in 1.21.
-+  const trapdoorIds = new Set();
-+  if (blocksByName.iron_trapdoor != null) { trapdoorIds.add(blocksByName.iron_trapdoor.id) } // 1.8+
-+  if (blocksByName.acacia_trapdoor != null) { trapdoorIds.add(blocksByName.acacia_trapdoor.id) } // 1.13+
-+  if (blocksByName.birch_trapdoor != null) { trapdoorIds.add(blocksByName.birch_trapdoor.id) } // 1.13+
-+  if (blocksByName.jungle_trapdoor != null) { trapdoorIds.add(blocksByName.jungle_trapdoor.id) } // 1.13+
-+  if (blocksByName.oak_trapdoor != null) { trapdoorIds.add(blocksByName.oak_trapdoor.id) } // 1.13+
-+  if (blocksByName.dark_oak_trapdoor != null) { trapdoorIds.add(blocksByName.dark_oak_trapdoor.id) } // 1.13+
-+  if (blocksByName.spruce_trapdoor != null) { trapdoorIds.add(blocksByName.spruce_trapdoor.id) } // 1.13+
-+  if (blocksByName.crimson_trapdoor != null) { trapdoorIds.add(blocksByName.crimson_trapdoor.id) } // 1.16+
-+  if (blocksByName.warped_trapdoor != null) { trapdoorIds.add(blocksByName.warped_trapdoor.id) } // 1.16+
-+  if (blocksByName.mangrove_trapdoor != null) { trapdoorIds.add(blocksByName.mangrove_trapdoor.id) } // 1.19+
-+  if (blocksByName.cherry_trapdoor != null) { trapdoorIds.add(blocksByName.cherry_trapdoor.id) } // 1.20+
++  const trapdoorIds = new Set()
++  if (blocksByName.iron_trapdoor) { trapdoorIds.add(blocksByName.iron_trapdoor.id) } // 1.8+
++  if (blocksByName.acacia_trapdoor) { trapdoorIds.add(blocksByName.acacia_trapdoor.id) } // 1.13+
++  if (blocksByName.birch_trapdoor) { trapdoorIds.add(blocksByName.birch_trapdoor.id) } // 1.13+
++  if (blocksByName.jungle_trapdoor) { trapdoorIds.add(blocksByName.jungle_trapdoor.id) } // 1.13+
++  if (blocksByName.oak_trapdoor) { trapdoorIds.add(blocksByName.oak_trapdoor.id) } // 1.13+
++  if (blocksByName.dark_oak_trapdoor) { trapdoorIds.add(blocksByName.dark_oak_trapdoor.id) } // 1.13+
++  if (blocksByName.spruce_trapdoor) { trapdoorIds.add(blocksByName.spruce_trapdoor.id) } // 1.13+
++  if (blocksByName.crimson_trapdoor) { trapdoorIds.add(blocksByName.crimson_trapdoor.id) } // 1.16+
++  if (blocksByName.warped_trapdoor) { trapdoorIds.add(blocksByName.warped_trapdoor.id) } // 1.16+
++  if (blocksByName.mangrove_trapdoor) { trapdoorIds.add(blocksByName.mangrove_trapdoor.id) } // 1.19+
++  if (blocksByName.cherry_trapdoor) { trapdoorIds.add(blocksByName.cherry_trapdoor.id) } // 1.20+
 +
-   const vineId = blocksByName.vine.id
    const waterLike = new Set()
    if (blocksByName.seagrass) waterLike.add(blocksByName.seagrass.id) // 1.13+
-@@ -421,7 +467,22 @@ function Physics (mcData, world) {
+   if (blocksByName.tall_seagrass) waterLike.add(blocksByName.tall_seagrass.id) // 1.13+
+@@ -419,9 +434,26 @@ function Physics (mcData, world) {
+     vel.z += forward * cos - strafe * sin
+   }
  
++  const climbableTrapdoorFeature = supportFeature('climbableTrapdoor')
    function isOnLadder (world, pos) {
      const block = world.getBlock(pos)
 -    return (block && (block.type === ladderId || block.type === vineId))
@@ -84,11 +39,12 @@ index 2ef4ca1..85f7ea8 100644
 +    //  1. The trapdoor is placed directly above a ladder.
 +    //  2. The trapdoor is opened.
 +    //  3. The trapdoor and the ladder directly below it face the same direction.
-+    if (supportFeature('climableTrapdoor') && trapdoorIds.has(block.type)) {
-+      const block_below = world.getBlock(pos.offset(0, -1, 0))
-+      if (block_below.type != ladderId) { return false } // condition 1.
-+      if (!block.getProperties().open) { return false } // condition 2.
-+      if (block.getProperties().facing != block_below.getProperties().facing) { return false } // condition 3
++    if (climbableTrapdoorFeature && trapdoorIds.has(block.type)) {
++      const blockBelow = world.getBlock(pos.offset(0, -1, 0))
++      if (blockBelow.type !== ladderId) { return false } // condition 1.
++      const blockProperties = block.getProperties()
++      if (!blockProperties.open) { return false } // condition 2.
++      if (blockProperties.facing !== blockBelow.getProperties().facing) { return false } // condition 3
 +      return true
 +    }
 +
@@ -97,43 +53,25 @@ index 2ef4ca1..85f7ea8 100644
  
    function doesNotCollide (world, pos) {
 diff --git a/node_modules/prismarine-physics/lib/features.json b/node_modules/prismarine-physics/lib/features.json
-index 411cff3..aa0378e 100644
+index 411cff3..bf83100 100644
 --- a/node_modules/prismarine-physics/lib/features.json
 +++ b/node_modules/prismarine-physics/lib/features.json
-@@ -2,26 +2,31 @@
-   {
-     "name": "independentLiquidGravity",
-     "description": "Liquid gravity is a constant",
--    "versions": ["1.8", "1.9", "1.10", "1.11", "1.12"]
-+    "versions": [[">= 1.8", "<= 1.12"]]
-   },
-   {
-     "name": "proportionalLiquidGravity",
-     "description": "Liquid gravity is a proportion of normal gravity",
--    "versions": ["1.13", "1.14", "1.15", "1.16", "1.17", "1.18", "1.19", "1.20"]
-+    "versions": [">= 1.13"]
-   },
-   {
-     "name": "velocityBlocksOnCollision",
-     "description": "Velocity changes are caused by blocks are triggered by collision with the block",
--    "versions": ["1.8", "1.9", "1.10", "1.11", "1.12", "1.13", "1.14"]
-+    "versions": [[">= 1.8", "<= 1.14"]]
-   },
+@@ -17,11 +17,16 @@
    {
      "name": "velocityBlocksOnTop",
      "description": "Velocity changes are caused by the block the player is standing on",
 -    "versions": ["1.15", "1.17", "1.18"]
-+    "versions": [">= 1.15"]
++    "versions": ["1.15", "1.16", "1.17", "1.18", "1.19", "1.20"]
    },
    {
      "name": "climbUsingJump",
      "description": "Entity can climb ladders and vines by pressing jump",
 -    "versions": ["1.14", "1.15", "1.17", "1.18"]
-+    "versions": [">= 1.14"]
++    "versions": ["1.14", "1.15", "1.16", "1.17", "1.18", "1.19", "1.20"]
 +  },
 +  {
-+    "name": "climableTrapdoor",
-+    "description": "Trapdoors placed directly above ladders become climable.",
-+    "versions": [">= 1.9"]
++    "name": "climbableTrapdoor",
++    "description": "Trapdoors placed directly above ladders become climbable",
++    "versions": ["1.9", "1.10", "1.11", "1.12", "1.13", "1.14", "1.15", "1.16", "1.17", "1.18", "1.19", "1.20"]
    }
  ]
