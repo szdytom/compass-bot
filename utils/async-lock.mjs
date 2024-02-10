@@ -30,6 +30,6 @@ export class AsyncLock {
 		let resolve = this.pending_queue.front();
 		this.pending_queue.popFront();
 		this.lock_id += 1;
-		resolve(lock_id);
+		resolve(this.lock_id);
 	}
 };
