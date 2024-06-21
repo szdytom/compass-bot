@@ -2,7 +2,7 @@ import * as authlib from './auth/authlib.mjs';
 import mineflayer from 'mineflayer';
 import yargs from 'yargs';
 import { asyncSleep, parseLogin, waitEvent } from 'compass-utils';
-import repl from 'node:repl';
+import * as pathfinder from 'mineflayer-pathfinder';
 import 'enhanced-vec3';
 import debug from 'debug';
 import { createLocalRepl, createTcpReplServer } from './repl/index.mjs';
@@ -72,6 +72,7 @@ async function main() {
 	bot.loadPlugin((await import('compass-event-promise')).default);
 	bot.loadPlugin((await import('compass-control')).default);
 	bot.loadPlugin((await import('compass-fly-control')).default);
+	bot.loadPlugin(pathfinder.pathfinder);
 	await bot.waitEvent('spawn');
 
 	const context_shared = {};
@@ -80,15 +81,13 @@ async function main() {
 			utils: await import('compass-utils'),
 			cctl: await import('compass-control'),
 			flyctl: await import('compass-fly-control'),
+			pathfinder: pathfinder,
+			pf: pathfinder, // alias
 		};
 		context.mcdata = (await import('minecraft-data')).default(bot.version);
 		context.bot = bot;
 		context.Vec3 = (await import('vec3')).Vec3;
 		context.mineflayer = mineflayer;
-		context.owner = () => {
-			if (!args.owner) { return null; }
-			return bot.players[args.owner];
-		};
 
 		context.PI = Math.PI;
 		context.debug = debug;
@@ -99,6 +98,10 @@ async function main() {
 		context.sc.debug_fctl = () => debug.enable('compass-fly-control');
 		context.sc.sleep = asyncSleep;
 		context.sc.tossHeld = () => bot.tossStack(bot.heldItem);
+		context.sc.owner = () => {
+			if (!args.owner) { return null; }
+			return bot.players[args.owner];
+		};
 	}
 
 	if (args.enableTcpRepl) {
