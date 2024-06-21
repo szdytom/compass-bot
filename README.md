@@ -60,12 +60,13 @@ REPL 上下文内预先定义了如下变量/函数/类型：
  + `Vec3`：3 维向量类型
  + `debug`：调试日志模块
  + `mineflayer`: mineflayer 模块默认导出
+ + `mcdata`: minecraft-data 模块在 `bot.version` 版本下的导出
  + `lib.utils`: compass-utils 模块导出
- + `lib.control`: mineflayer-control 模块导出
- + `lib.flyctl`: mineflayer-fly-control 模块导出
+ + `lib.cctl`: compass-control 模块导出
+ + `lib.flyctl`: compass-fly-control 模块导出
  + `sc.pos()`: 缩写，返回 `bot.entity.position`
- + `sc.debug_mfc()`：缩写，等价于 `debug.enable('mineflayer-control')`
- + `sc.debug_mff()`：缩写，等价于 `debug.enable('mineflayer-fly-control')`
+ + `sc.debug_cctl()`：缩写，等价于 `debug.enable('compass-control')`
+ + `sc.debug_fctl()`：缩写，等价于 `debug.enable('compass-fly-control')`
  + `sc.sleep`：缩写，等价于 `lib.utils.asyncSleep`
  + `sc.tossHeld()`：缩写，等价于 `bot.tossStack(bot.heldItem)`
  + `bb`：所有 REPL 实例的共享数据

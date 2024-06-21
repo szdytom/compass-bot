@@ -69,18 +69,19 @@ async function main() {
 	});
 
 	await waitEvent(bot, 'inject_allowed');
-	bot.loadPlugin((await import('mineflayer-event-promise')).default);
-	bot.loadPlugin((await import('mineflayer-control')).default);
-	bot.loadPlugin((await import('mineflayer-fly-control')).default);
+	bot.loadPlugin((await import('compass-event-promise')).default);
+	bot.loadPlugin((await import('compass-control')).default);
+	bot.loadPlugin((await import('compass-fly-control')).default);
 	await bot.waitEvent('spawn');
 
 	const context_shared = {};
 	async function loadReplContextModules(context) {
 		context.lib = {
 			utils: await import('compass-utils'),
-			control: await import('mineflayer-control'),
-			flyctl: await import('mineflayer-fly-control'),
+			cctl: await import('compass-control'),
+			flyctl: await import('compass-fly-control'),
 		};
+		context.mcdata = (await import('minecraft-data')).default(bot.version);
 		context.bot = bot;
 		context.Vec3 = (await import('vec3')).Vec3;
 		context.mineflayer = mineflayer;
@@ -94,8 +95,8 @@ async function main() {
 		context.bb = context_shared;
 		context.sc = {};
 		context.sc.pos = () => bot.entity.position;
-		context.sc.debug_mfc = () => debug.enable('mineflayer-control');
-		context.sc.debug_mff = () => debug.enable('mineflayer-fly-control');
+		context.sc.debug_cctl = () => debug.enable('compass-control');
+		context.sc.debug_fctl = () => debug.enable('compass-fly-control');
 		context.sc.sleep = asyncSleep;
 		context.sc.tossHeld = () => bot.tossStack(bot.heldItem);
 	}

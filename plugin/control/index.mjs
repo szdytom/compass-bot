@@ -3,7 +3,7 @@ import { Queue, Task, isIterable } from 'compass-utils';
 import { Vec3 } from 'vec3';
 import 'enhanced-vec3';
 import assert from 'node:assert/strict';
-const logger = debug('mineflayer-control');
+const logger = debug('compass-control');
 
 // yaw = axis * Math.PI / 2
 // name = "ZX"[axis % 2]
@@ -104,7 +104,7 @@ async function moveAxisTask(bot, task, axis_raw, target_raw, level) {
 	target.centralizeXZ();
 
 	bot.clearControlStates();
-	bot.control.centralizeXZ();
+	bot.cctl.centralizeXZ();
 
 	let pos = bot.entity.position;
 	const delta = target.minus(pos);
@@ -195,7 +195,7 @@ async function moveAxisTask(bot, task, axis_raw, target_raw, level) {
 
 async function ladderAscendTask(bot, task, target_y) {
 	assert.equal(typeof target_y, 'number', 'target_y');
-	bot.control.centralizeXZ();
+	bot.cctl.centralizeXZ();
 	const start_pos = bot.entity.position.clone();
 	logger(`ladderAscendTask() initial position: ${start_pos}.`);
 	logger(`ladderAscendTask() target y: ${target_y}.`);
@@ -217,7 +217,7 @@ async function ladderAscendTask(bot, task, target_y) {
 
 		const pos = bot.entity.position;
 		if (pos.xzDistanceTo(start_pos) > 1) { throw new MoveInterferedError(); }
-		bot.control.centralizeXZ();
+		bot.cctl.centralizeXZ();
 
 		if (Math.abs(pos.y - target_y) < 0.2) {
 			logger('ladderAscendTask() reached.');
@@ -246,11 +246,11 @@ async function ladderAscendTask(bot, task, target_y) {
 }
 
 export default function inject(bot) {
-	bot.control = {};
-	bot.control.getState = () => { return ControlState.from(bot.controlState); };
-	bot.control.centralizeXZ = () => { bot.entity.position.centralizeXZ(); };
+	bot.cctl = {};
+	bot.cctl.getState = () => { return ControlState.from(bot.cctlState); };
+	bot.cctl.centralizeXZ = () => { bot.entity.position.centralizeXZ(); };
 
-	bot.control.moveAxis = (axis, target, level = MOVE_LEVEL.SPRINT) => {
+	bot.cctl.moveAxis = (axis, target, level = MOVE_LEVEL.SPRINT) => {
 		let task = new Task();
 		queueMicrotask(async () => {
 			try {
@@ -264,7 +264,7 @@ export default function inject(bot) {
 		return task;
 	};
 
-	bot.control.jumpUp = async (axis_raw, time=5) => {
+	bot.cctl.jumpUp = async (axis_raw, time=5) => {
 		const axis = AXIS[axis_raw];
 		assert.ok(typeof axis == 'number');
 		assert.ok(0 <= axis && axis <= 3);
@@ -272,7 +272,7 @@ export default function inject(bot) {
 		if (!bot.entity.onGround) {
 			throw new NotOnGroundError();
 		}
-		bot.control.centralizeXZ();
+		bot.cctl.centralizeXZ();
 		await bot.look(axis * Math.PI / 2, 0, true);
 		let controls = new ControlState('forward', 'jump');
 		let pos = bot.entity.position;
@@ -284,7 +284,7 @@ export default function inject(bot) {
 		await bot.waitForTicks(1);
 	};
 
-	bot.control.jumpForward = async (axis_raw, dis=2, tactic) => {
+	bot.cctl.jumpForward = async (axis_raw, dis=2, tactic) => {
 		if (tactic == null) { tactic = {}; }
 		if (tactic.sprint == null) { tactic.sprint = dis > 3; }
 		if (tactic.speed == null) { tactic.speed = tactic.sprint ? .355 : .216; }
@@ -298,7 +298,7 @@ export default function inject(bot) {
 			throw new NotOnGroundError();
 		}
 
-		bot.control.centralizeXZ();
+		bot.cctl.centralizeXZ();
 		let target = bot.entity.position.plus(AXIS_UNIT[axis].scaled(dis));
 		logger(`jumpForward() axis: ${"zx"[axis % 2]}`);
 		logger(`jumpForward() target: ${target}`);
@@ -327,7 +327,7 @@ export default function inject(bot) {
 		bot.entity.velocity.setXZ(0, 0);
 	}
 
-	bot.control.jump = async () => {
+	bot.cctl.jump = async () => {
 		if (!bot.entity.onGround) {
 			throw new NotOnGroundError();
 		}
@@ -336,7 +336,7 @@ export default function inject(bot) {
 		bot.setControlState('jump', false);
 	};
 
-	bot.control.jumpToHighest = () => {
+	bot.cctl.jumpToHighest = () => {
 		let task = new Task();
 		queueMicrotask(async () => {
 			try {
@@ -372,7 +372,7 @@ export default function inject(bot) {
 		return task;
 	};
 
-	bot.control.ladderAscend = (target_y) => {
+	bot.cctl.ladderAscend = (target_y) => {
 		let task = new Task();
 		queueMicrotask(async () => {
 			try {

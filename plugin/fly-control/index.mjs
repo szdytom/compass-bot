@@ -3,7 +3,7 @@ import { Task } from 'compass-utils';
 import { Vec3 } from 'vec3';
 import 'enhanced-vec3';
 import debug from 'debug';
-const logger = debug('mineflayer-fly-control');
+const logger = debug('compass-fly-control');
 
 export class ElytraNotEquippedError extends Error {
 	constructor() { super('Elytra is not equipped!'); }
@@ -32,7 +32,7 @@ export function fireworkFlight(firework_item) {
 async function takeOffTask(bot, task) {
 	if (bot.entity.elytraFlying) { throw new AlreadyElytraFlyingError(); }
 	if (bot.entity.onGround) {
-		await task._waitDependent(bot.control.jumpToHighest());
+		await task._waitDependent(bot.cctl.jumpToHighest());
 		task._interuptableHere();
 	}
 	
@@ -50,7 +50,7 @@ export function yawOfXZ(pos, target) {
 }
 
 async function cruiseTask(bot, task, target, tlimit) {
-	bot.control.centralizeXZ();
+	bot.cctl.centralizeXZ();
 	let start_pos = bot.entity.position.clone();
 	let distance_left = target.xzDistanceTo(start_pos);
 	let dy_requirement = potentialHeightRequired(distance_left);
@@ -120,7 +120,7 @@ async function cruiseTask(bot, task, target, tlimit) {
 async function gracefulLandTask(bot, task, target_y, fall_height) {
 	assert.ok(typeof target_y == 'number');
 	assert.ok(typeof fall_height == 'number');
-	bot.control.centralizeXZ();
+	bot.cctl.centralizeXZ();
 	const start_pos = bot.entity.position.clone();
 	logger(`gracefulLandTask() starting position=${start_pos}`);
 	await bot.look(0, Math.PI / 6);
@@ -166,7 +166,7 @@ async function gracefulLandTask(bot, task, target_y, fall_height) {
 		if (pos.xzDistanceTo(start_pos) > 1) {
 			throw new FlyInterferedError();
 		}
-		bot.control.centralizeXZ();
+		bot.cctl.centralizeXZ();
 	}
 
 	bot.entity.velocity.setXZ(0, 0);
@@ -177,7 +177,7 @@ async function ascendTask(bot, task, target_y, gracefulMode) {
 	assert.ok(typeof target_y == 'number');
 	if (target_y <= bot.entity.position.y) { return 0; }
 
-	bot.control.centralizeXZ();
+	bot.cctl.centralizeXZ();
 	await bot.look(0, Math.PI / 2, true);
 	task._interuptableHere();
 
