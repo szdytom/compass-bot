@@ -1,4 +1,4 @@
-import axios from 'axios';
+import fetch from 'node-fetch';
 import { readJsonFile, writeJsonFile } from 'compass-utils';
 
 export class NoCredentialError extends Error {
@@ -38,10 +38,14 @@ export class Account {
 	}
 
 	async auth(endpoint) {
-		let auth_info = (await axios.post(endpoint.auth_url('authenticate'), {
-			username: this.handle,
-			password: this.password,
-		})).data;
+		let auth_info = await (await fetch(endpoint.auth_url('authenticate'), {
+			method: 'POST',
+			body: JSON.stringify({
+				username: this.handle,
+				password: this.password,
+			}),
+			headers: { 'Content-Type': 'application/json', },
+		})).json();
 
 		return new YggdrasilSession(auth_info.accessToken, auth_info.clientToken
 			, auth_info.selectedProfile, auth_info.availableProfiles);
@@ -124,11 +128,15 @@ export class YggdrasilSession {
 	}
 
 	async validate(endpoint) {
-		let vres = await axios.post(endpoint.auth_url('validate'), {
-			accessToken: this.accessToken,
-			clientToken: this.clientToken,
-		}, { validateStatus: (status) => (status === 403 || status === 204) });
-		return vres.status == 204;
+		let vres = await fetch(endpoint.auth_url('validate'), {
+		    method: 'POST',
+			body: JSON.stringify({
+			    accessToken: this.accessToken,
+				clientToken: this.clientToken,
+			}),
+			headers: { 'Content-Type': 'application/json', },
+		})
+		return vres.status === 204;
 	}
 
 	async selectProfile(endpoint, profile) {
@@ -152,11 +160,15 @@ export class YggdrasilSession {
 
 		if (profile_info == null) { throw new NoCredentialError(profile); }
 
-		let session_info = (await axios.post(endpoint.auth_url('refresh'), {
-			accessToken: this.accessToken,
-			clientToken: this.clientToken,
-			selectedProfile: profile_info,
-		})).data;
+		let session_info = await (await fetch(endpoint.auth_url('refresh'), {
+		    method: 'POST',
+			body: JSON.stringify({
+			    accessToken: this.accessToken,
+				clientToken: this.clientToken,
+				selectedProfile: profile_info,
+			}),
+			headers: { 'Content-Type': 'application/json', },
+		})).json();
 		this.selectedProfile = session_info.selectedProfile;
 		this.accessToken = session_info.accessToken;
 		this.availableProfiles = null;
