@@ -14,13 +14,13 @@
     "compass-utils": "file:utils",
     "debug": "^4.3.4",
     "enhanced-vec3": "file:enhanced-vec3",
-    "mineflayer": "^4.0.0",
+    "mineflayer": "^4.20.0",
     "mineflayer-pathfinder": "^2.4.5",
     "node-fetch": "^3.3.2",
     "yargs": "^17.7.2"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "devDependencies": {
     "patch-package": "^8.0.0"
