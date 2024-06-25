@@ -51,6 +51,10 @@ node index.mjs profile@hostname[:port]
    * `--tcp-repl-port`：TCP 远程 REPL 的服务端口（可选，默认值 2121）
  + `--remote-repl-passcode-length`：远程 REPL 的服务口令强度（可选，默认值 8）
 
+## 基于 TCP 连接的远程 REPL
+
+在启动时加上 `--enable-tcp-repl` 选项即可启用基于 TCP 连接的远程 REPL。使用 `scripts/tcp-repl-client.mjs` 作为客户端连接到 REPL 服务。这个 TCP 数据流不是加密的，故出于安全考虑，该服务强制绑定 host 在 127.0.0.1（这意味着你只能从本地连接到它），你可以使用一个 TCP 端口转发工具（例如 socat）来将 TCP 连接转发到远程服务器。
+
 ## REPL
 
 REPL 上下文内预先定义了如下变量/函数/类型：

@@ -75,7 +75,7 @@ export function createTcpReplServer(port, passcode, contextLoader) {
 			socket.destroy();
 		}
 	});
-	server.listen(port);
+	server.listen(port, '127.0.0.1');
 	process.on('exit', () => {
 		for (const socket of connect_repl_sockets) {
 			socket.destroy();
